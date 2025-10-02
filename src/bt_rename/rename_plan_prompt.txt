@@ -1,0 +1,82 @@
+Please extract the anime's "title," "year", "episode number" and "season number"
+(if included in the filename or inferable) from the following anime filenames,
+and rename them to a standardized format recognizable by Emby servers.
+
+If the filename does not explicitly contain a season number, please make a
+reasonable inference based on the information in the filename (e.g., if there's
+no season number but the episode number starts from 1, or if the filename
+doesn't contain phrases like "Season N" or "2nd," it's usually Season 1),
+combined with TMDB query results, and default to Season 1.
+
+If the file list includes files or folders such as CDs, SPs, Bonus, Fonts etc.,
+please move them along with the files in the same location.
+
+Please return the results in JSON format, for example:
+
+Input 1:
+Files List:
+[VCB-Studio] GIRLS und PANZER/[VCB-Studio] GIRLS und PANZER [01][Ma10p_1080p][x265_flac].mkv
+[VCB-Studio] GIRLS und PANZER/[VCB-Studio] GIRLS und PANZER [01.5][Ma10p_1080p][x265_flac].mkv
+[VCB-Studio] GIRLS und PANZER/ガールズ＆パンツァー 第01話 ｢戦車道、始めます！｣ (BD 1920x1080 H.264@Hi10P ALAC5.1(2.1)ch+ALAC2.0ch+AACx2).sc.ass
+
+TMDB Serial Detail:
+{
+  "first_air_date": "2012-10-09",
+  "name": "少女与战车",
+  "seasons": [
+    {
+      "air_date": "2012-11-13",
+      "episode_count": 61,
+      "id": 53194,
+      "name": "特别篇",
+      "overview": "Bluray/DVD 特典，以发布时间排序。",
+      "poster_path": "/8AOBonLVHCuvq4PiR5sI2ODzfi5.jpg",
+      "season_number": 0,
+      "vote_average": 0
+    },
+    {
+      "air_date": "2012-10-09",
+      "episode_count": 12,
+      "id": 53193,
+      "name": "第 1 季",
+      "overview": "《少女与战车》的故事舞台设置在一个将使用战车的武技“战车道”、“花道”与“茶道”并列为大和抚子必须掌握的三大本领的架空背景中。\n\n因为讨厌战车道，才转学到没有战车道的大洗女子学园的西住美穗，没想到才刚刚转学过来就被学生会长叫了过去，会长要求美穗选择战车道的修行并且还要在全国大会中出场。目前学校里只有一辆破旧的四号D型坦克，而且，队伍中聚集的成员全部都是超个性派——花道本家的大小姐五十铃华、热衷于恋爱的武部沙织、对坦克无比狂热的秋山优花里、早上起不来的优等生冷泉麻子。而面临着废校危机的大洗学院要靠这样一支临时拼凑的队伍去取得全国大赛的优胜来保住学校。",
+      "poster_path": "/6ofOdjXe0SOB6CWmQNCDJ3TIO0w.jpg",
+      "season_number": 1,
+      "vote_average": 9
+    }
+  ]
+}
+
+Output 1:
+```json
+{
+  "result": [
+    "少女与战车 (2012)/Season 1/GIRLS und PANZER S01E01.mkv",
+    "少女与战车 (2012)/Season 1/GIRLS und PANZER S01E01.5.mkv",
+    "少女与战车 (2012)/Season 1/GIRLS und PANZER S01E01.chs.ass"
+  ]
+}
+```
+
+Input 2:
+Files List:
+[VCB-Studio] White Album [Hi10p_720p]/[VCB-Studio] White Album [01][Hi10p_720p][x264_flac].mkv
+[VCB-Studio] White Album [Hi10p_720p]/[VCB-Studio] White Album [Fonts].7z"
+[VCB-Studio] White Album [Hi10p_720p]/SPs
+
+Output 2:
+```json
+{
+  "result": [
+    "白色相簿 (2009)/Season 1/White Album S01E01.mkv",
+    "白色相簿 (2009)/Season 1/Font.7z",
+    "白色相簿 (2009)/Season 1/SPs"
+  ]
+}
+```
+
+Files List:
+<<FILES>>
+
+TMDB Serial Detail:
+<<TMDB_INFO>>

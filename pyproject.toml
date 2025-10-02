@@ -1,0 +1,20 @@
+[project]
+name = "bt_rename"
+version = "0.1.0"
+description = "A tool for renaming BT downloaded files based on TMDB information"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dotenv>=0.9.9",
+    "requests>=2.32.5",
+]
+
+[project.scripts]
+bt-rename-plan = "bt_rename.rename_plan:main"
+bt-rename = "bt_rename.rename:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bt_rename = ["*.txt"]
