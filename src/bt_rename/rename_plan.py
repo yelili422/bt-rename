@@ -117,8 +117,8 @@ def generate_rename_response(paths_list: str, tmdb_info: Optional[Dict[str, Any]
     }
 
     try:
-        response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions",
+                                 headers=headers, json=data, timeout=30)
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
     except requests.exceptions.RequestException as e:
@@ -145,12 +145,25 @@ def has_video_files(directory: str) -> bool:
     return False
 
 
+def common_top_directory(paths: List[str]) -> str:
+    if not paths:
+        return ''
+
+    dirs = [os.path.dirname(path) for path in paths]
+    common_path = os.path.commonpath(dirs)
+
+    path_parts = common_path.split(os.sep)
+    if len(path_parts) > 1:
+        return path_parts[0]
+
+    return common_path
+
+
 def main():
     load_dotenv()
 
     try:
-        prompt_resource = resources.files(
-            'bt_rename').joinpath('rename_plan_prompt.txt')
+        prompt_resource = resources.files('bt_rename').joinpath('rename_plan_prompt.txt')
         prompt = prompt_resource.read_text()
     except Exception as e:
         print(f"Error loading prompt file: {e}")
@@ -158,16 +171,15 @@ def main():
 
     paths_list = sys.stdin.read()
 
-    cwd = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
-    anime_name = extract_anime_name(cwd)
-    tmdb_info = query_tmdb(anime_name)
-    tmdb_info = tidy_tmdb_result(tmdb_info)
+    common_dir = common_top_directory(paths_list.strip().split('\n'))
+    anime_name = extract_anime_name(common_dir)
 
+    tmdb_info = tidy_tmdb_result(query_tmdb(anime_name)) if anime_name else None
     print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
 
     rename_response = generate_rename_response(paths_list, tmdb_info, prompt)
-    print("AI Rename Response:\n", rename_response, file=sys.stderr)
     if not rename_response:
+        print("Failed to generate rename response.", file=sys.stderr)
         return None
 
     rename_plan = normalize_rename_response(paths_list, rename_response)
@@ -178,7 +190,11 @@ def main():
 
     diff_rename_files(rename_plan)
 
-    with open(os.path.join(os.getcwd(), ".rename-plan.json"), "w") as f:
+    output_name = ".rename-plan.json"
+    if common_dir:
+        output_name = f".{common_dir}{output_name}"
+
+    with open(os.path.join(os.getcwd(), output_name), "w") as f:
         json.dump(rename_plan, f, indent=2, ensure_ascii=False)
 
 

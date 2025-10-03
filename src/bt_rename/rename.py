@@ -2,9 +2,11 @@ import json
 import re
 import sys
 import time
-from typing import Dict, List
+from typing import Dict
 import os
 import shutil
+
+from bt_rename.rename_plan import common_top_directory
 
 
 def execute_rename_plan(rename_map: Dict[str, str]) -> None:
@@ -22,20 +24,6 @@ def execute_rename_plan(rename_map: Dict[str, str]) -> None:
 
         os.rename(absolute_original, absolute_new)
         print(f"Renamed '{absolute_original}' to '{absolute_new}'")
-
-
-def common_top_directory(paths: List[str]) -> str:
-    if not paths:
-        return ''
-
-    dirs = [os.path.dirname(path) for path in paths]
-    common_path = os.path.commonpath(dirs)
-
-    path_parts = common_path.split(os.sep)
-    if len(path_parts) > 1:
-        return path_parts[0]
-
-    return common_path
 
 
 def main():
@@ -61,6 +49,7 @@ def main():
 
     shutil.move(plan_file, backup_path)
     print(f"Moved plan file to: {backup_path}")
+
 
 if __name__ == "__main__":
     main()
