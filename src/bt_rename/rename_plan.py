@@ -58,13 +58,21 @@ def extract_anime_name(dir_name: str) -> str:
     return name
 
 
-def tidy_tmdb_result(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def simplify_tmdb_result(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not result:
         return None
 
     return {
-        key: result[key]
-        for key in ["name", "first_air_date", "seasons"]
+        "name": result.get("name"),
+        "first_air_date": result.get("first_air_date"),
+        "seasons": [
+            {
+                "episode_count": season.get("episode_count"),
+                "name": season.get("name"),
+                "season_number": season.get("season_number")
+            }
+            for season in result.get("seasons", [])
+        ] if "seasons" in result else []
     }
 
 
@@ -83,17 +91,7 @@ def normalize_rename_response(paths: List[str], rename_response: str) -> Optiona
         print("Mismatch between number of paths and rename results.", file=sys.stderr)
         return None
 
-    processed_result: List[str] = []
-    for new_name in result:
-        processed_name = new_name
-        # Replace Traditional Chinese (.tc) and Simplified Chinese (.sc) subtitle extensions
-        processed_name = re.sub(r'\.tc\.(ass|srt)$', r'.cht.\1', processed_name, flags=re.IGNORECASE)
-        processed_name = re.sub(r'\.sc\.(ass|srt)$', r'.chs.\1', processed_name, flags=re.IGNORECASE)
-        processed_name = re.sub(r'\.jptc\.(ass|srt)$', r'.cht.\1', processed_name, flags=re.IGNORECASE)
-        processed_name = re.sub(r'\.jpsc\.(ass|srt)$', r'.chs.\1', processed_name, flags=re.IGNORECASE)
-        processed_result.append(processed_name)
-
-    return {original: new for original, new in zip(paths, processed_result)}
+    return {original: new for original, new in zip(paths, result)}
 
 
 def generate_rename_response(paths: List[str], tmdb_info: Optional[Dict[str, Any]], prompt: str) -> Optional[str]:
@@ -169,7 +167,7 @@ def main():
     common_dir = common_top_directory(paths)
     anime_name = extract_anime_name(common_dir)
 
-    tmdb_info = tidy_tmdb_result(query_tmdb(anime_name)) if anime_name else None
+    tmdb_info = simplify_tmdb_result(query_tmdb(anime_name)) if anime_name else None
     print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
 
     rename_response = generate_rename_response(paths, tmdb_info, prompt)
