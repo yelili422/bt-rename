@@ -9,8 +9,13 @@ dependencies = [
     "requests>=2.32.5",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-mock>=3.10.0",
+]
+
 [project.scripts]
-bt-rename-plan = "bt_rename.rename_plan:main"
 bt-rename = "bt_rename.rename:main"
 
 [tool.setuptools.packages.find]

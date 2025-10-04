@@ -8,4 +8,4 @@ find "GIRLS und PANZER" -maxdepth 1 -type f ! -name ".DS_Store" \
     -o -type d -iname "CDs" \
     -o -type d -name "*特典*" \
     | sort \
-    | bt-rename-plan
+    | bt-rename

@@ -23,6 +23,6 @@ ExecStart=/bin/bash -c ' \
       -o -type d -iname "Bonus" \
       -o -type d -iname "CDs" \
       -o -type d -name "*特典*" \
-      | sort | %h/.local/bin/bt-rename-plan 2>&1 | systemd-cat -t on-torrent-finished; \
+      | sort | %h/.local/bin/bt-rename 2>&1 | systemd-cat -t on-torrent-finished; \
   done \
 '
