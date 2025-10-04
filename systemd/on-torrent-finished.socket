@@ -1,0 +1,13 @@
+[Unit]
+Description=Socket for on-torrent-finished notification
+After=network.target
+
+[Socket]
+ListenStream=%t/on-torrent-finished.sock
+Accept=yes
+SocketMode=0666
+MaxConnections=10
+MaxConnectionsPerSource=5
+
+[Install]
+WantedBy=sockets.target

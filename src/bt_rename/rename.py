@@ -18,7 +18,7 @@ def execute_rename_plan(rename_map: Dict[str, str]) -> None:
         if not os.path.exists(new_dir):
             os.makedirs(new_dir)
 
-            dir_name = os.path.dirname(new_dir)
+            dir_name = os.path.basename(new_dir)
             if not re.match(r".*Season \d+$", dir_name):
                 open(os.path.join(new_dir, ".ignore"), "a").close()
 

@@ -41,7 +41,7 @@ def query_tmdb(title: str) -> Optional[Dict[str, Any]]:
         details_response.raise_for_status()
         return details_response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error querying TMDB: {e}")
+        print(f"Error querying TMDB: {e}", file=sys.stderr)
         return None
 
 
@@ -68,7 +68,7 @@ def tidy_tmdb_result(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any
     }
 
 
-def normalize_rename_response(paths_list: str, rename_response: str) -> Optional[Dict[str, str]]:
+def normalize_rename_response(paths: List[str], rename_response: str) -> Optional[Dict[str, str]]:
     if rename_response.startswith("```json") and rename_response.endswith("```"):
         rename_response = rename_response[len("```json"): -len("```")].strip()
 
@@ -78,7 +78,6 @@ def normalize_rename_response(paths_list: str, rename_response: str) -> Optional
         return None
 
     result: List[str] = response_json['result']
-    paths = paths_list.strip().split('\n')
 
     if len(result) != len(paths):
         print("Mismatch between number of paths and rename results.", file=sys.stderr)
@@ -97,11 +96,11 @@ def normalize_rename_response(paths_list: str, rename_response: str) -> Optional
     return {original: new for original, new in zip(paths, processed_result)}
 
 
-def generate_rename_response(paths_list: str, tmdb_info: Optional[Dict[str, Any]], prompt: str) -> Optional[str]:
+def generate_rename_response(paths: List[str], tmdb_info: Optional[Dict[str, Any]], prompt: str) -> Optional[str]:
     assert OPENROUTER_API_KEY, "OPENROUTER_API_KEY is not set"
     assert OPENROUTER_MODEL, "OPENROUTER_MODEL is not set"
 
-    full_prompt = prompt.replace("<<FILES>>", paths_list)
+    full_prompt = prompt.replace("<<FILES>>", '\n'.join(paths))
 
     if tmdb_info:
         full_prompt = full_prompt.replace("<<TMDB_INFO>>", str(tmdb_info))
@@ -122,7 +121,7 @@ def generate_rename_response(paths_list: str, tmdb_info: Optional[Dict[str, Any]
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
     except requests.exceptions.RequestException as e:
-        print(f"Error querying OpenRouter: {e}")
+        print(f"Error querying OpenRouter: {e}, headers: {headers}, data: {data}", file=sys.stderr)
         return None
 
 
@@ -131,18 +130,14 @@ def diff_rename_files(rename_map: Dict[str, str]) -> None:
         print(f"'{original}' -> '{new}'")
 
 
-def has_video_files(directory: str) -> bool:
-    video_extensions = {'.mp4', '.mkv', '.avi', '.mov'}
-    for entry in os.listdir(directory):
-        path = os.path.join(directory, entry)
-
-        if os.path.isfile(path):
-            ext = os.path.splitext(entry)[1].lower()
-
-            if ext in video_extensions:
-                return True
-
-    return False
+def filter_hidden_paths(paths: List[str]) -> List[str]:
+    filtered_paths: List[str] = []
+    for path in paths:
+        path_parts = path.split(os.sep)
+        has_hidden = any(part.startswith('.') and part not in ['.', '..'] for part in path_parts)
+        if not has_hidden:
+            filtered_paths.append(path)
+    return filtered_paths
 
 
 def common_top_directory(paths: List[str]) -> str:
@@ -169,20 +164,20 @@ def main():
         print(f"Error loading prompt file: {e}")
         sys.exit(1)
 
-    paths_list = sys.stdin.read()
-
-    common_dir = common_top_directory(paths_list.strip().split('\n'))
+    path_str = sys.stdin.read()
+    paths = filter_hidden_paths(path_str.strip().split('\n'))
+    common_dir = common_top_directory(paths)
     anime_name = extract_anime_name(common_dir)
 
     tmdb_info = tidy_tmdb_result(query_tmdb(anime_name)) if anime_name else None
     print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
 
-    rename_response = generate_rename_response(paths_list, tmdb_info, prompt)
+    rename_response = generate_rename_response(paths, tmdb_info, prompt)
     if not rename_response:
         print("Failed to generate rename response.", file=sys.stderr)
         return None
 
-    rename_plan = normalize_rename_response(paths_list, rename_response)
+    rename_plan = normalize_rename_response(paths, rename_response)
     print("Normalized Rename Plan:\n", rename_plan, file=sys.stderr)
     if not rename_plan:
         print("Failed to generate rename plan.", file=sys.stderr)

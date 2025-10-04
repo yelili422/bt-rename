@@ -1,0 +1,28 @@
+[Unit]
+Description=Process on-torrent-finished notification
+After=network.target
+
+[Service]
+Type=simple
+RemainAfterExit=no
+WorkingDirectory=%h
+StandardInput=socket
+StandardOutput=journal
+StandardError=journal
+
+EnvironmentFile=%h/.config/bt-rename/config
+ExecStart=/bin/bash -c ' \
+  while IFS= read -r line; do \
+    echo "Received: $line" | systemd-cat -t on-torrent-finished; \
+    cd "$(dirname "$line")"; \
+    maxdepth=$(find "$(basename "$line")" -maxdepth 1 -type f \( -iname "*.mkv" -o -iname "*.mp4" -o -iname "*.avi" -o -iname "*.mov" \) | grep -q . && echo 1 || echo 2); \
+    find "$(basename "$line")" -maxdepth $maxdepth -type f \
+      -o -type d -iname "Scan*" \
+      -o -type d -iname "Specials" \
+      -o -type d -iname "SPs" \
+      -o -type d -iname "Bonus" \
+      -o -type d -iname "CDs" \
+      -o -type d -name "*特典*" \
+      | sort | %h/.local/bin/bt-rename-plan 2>&1 | systemd-cat -t on-torrent-finished; \
+  done \
+'
