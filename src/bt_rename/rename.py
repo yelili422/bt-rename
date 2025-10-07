@@ -13,34 +13,50 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-lite")
 
 
-def query_tmdb(title: str) -> Optional[Dict[str, Any]]:
+def query_tmdb(title: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     assert TMDB_API_KEY, "TMDB_API_KEY is not set"
 
-    search_url = f"https://api.themoviedb.org/3/search/tv"
-    params: Dict[str, str] = {
-        "api_key": TMDB_API_KEY,
-        "query": title,
-        "language": "zh-CN"
-    }
-
     try:
-        response = requests.get(search_url, params=params, timeout=10)
+        tv_search_url = f"https://api.themoviedb.org/3/search/tv"
+        params: Dict[str, str] = {
+            "api_key": TMDB_API_KEY,
+            "query": title,
+            "language": "zh-CN"
+        }
+
+        response = requests.get(tv_search_url, params=params, timeout=10)
         response.raise_for_status()
         results = response.json().get("results")
 
-        if not results:
-            return None
+        if results:
+            best_match = results[0]
+            tv_id = best_match["id"]
 
-        # 简单的启发式：选择第一个结果。
-        # 在更高级的系统中，AI 可以帮助从 'results' 中选择最佳匹配。
-        best_match = results[0]
-        tv_id = best_match["id"]
+            details_url = f"https://api.themoviedb.org/3/tv/{tv_id}"
+            details_response = requests.get(
+                details_url, params={"api_key": TMDB_API_KEY, "language": "zh-CN"}, timeout=10)
+            details_response.raise_for_status()
 
-        details_url = f"https://api.themoviedb.org/3/tv/{tv_id}"
-        details_response = requests.get(
-            details_url, params={"api_key": TMDB_API_KEY, "language": "zh-CN"}, timeout=10)
-        details_response.raise_for_status()
-        return details_response.json()
+            return "TV", details_response.json()
+
+        movie_search_url = f"https://api.themoviedb.org/3/search/movie"
+        response = requests.get(movie_search_url, params=params, timeout=10)
+        response.raise_for_status()
+        results = response.json().get("results")
+
+        if results:
+            best_match = results[0]
+            movie_id = best_match["id"]
+
+            details_url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+            details_response = requests.get(
+                details_url, params={"api_key": TMDB_API_KEY, "language": "zh-CN"}, timeout=10)
+            details_response.raise_for_status()
+
+            return "MOVIE", details_response.json()
+
+        return None
+
     except requests.exceptions.RequestException as e:
         print(f"Error querying TMDB: {e}", file=sys.stderr)
         return None
@@ -59,29 +75,45 @@ def extract_anime_name(dir_name: str) -> str:
     return name
 
 
-def simplify_tmdb_result(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    if not result:
-        return None
-
-    return {
-        "name": result.get("name"),
-        "first_air_date": result.get("first_air_date"),
-        "seasons": [
-            {
-                "episode_count": season.get("episode_count"),
-                "name": season.get("name"),
-                "season_number": season.get("season_number")
+def simplify_tmdb_result(media_type: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    match media_type:
+        case "TV":
+            return {
+                "name": result.get("name"),
+                "first_air_date": result.get("first_air_date"),
+                "seasons": [
+                    {
+                        "episode_count": season.get("episode_count"),
+                        "name": season.get("name"),
+                        "season_number": season.get("season_number")
+                    }
+                    for season in result.get("seasons", [])
+                ] if "seasons" in result else []
             }
-            for season in result.get("seasons", [])
-        ] if "seasons" in result else []
-    }
+        case "MOVIE":
+            return {
+                "title": result.get("title"),
+                "release_date": result.get("release_date"),
+            }
+        case _:
+            raise ValueError(f"Unsupported media type: {media_type}")
 
 
 def normalize_rename_response(paths: List[str], rename_response: str) -> Optional[Dict[str, str]]:
+    if not rename_response or not rename_response.strip():
+        print("Empty rename response received.", file=sys.stderr)
+        return None
+
     if rename_response.startswith("```json") and rename_response.endswith("```"):
         rename_response = rename_response[len("```json"): -len("```")].strip()
 
-    response_json = json.loads(rename_response)
+    try:
+        response_json = json.loads(rename_response)
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON response: {e}", file=sys.stderr)
+        print(f"Raw response: {rename_response}", file=sys.stderr)
+        return None
+
     if 'result' not in response_json:
         print("No 'result' field in rename response JSON.", file=sys.stderr)
         return None
@@ -90,6 +122,8 @@ def normalize_rename_response(paths: List[str], rename_response: str) -> Optiona
 
     if len(result) != len(paths):
         print("Mismatch between number of paths and rename results.", file=sys.stderr)
+        print(f"Paths: {paths}", file=sys.stderr)
+        print(f"Results: {result}", file=sys.stderr)
         return None
 
     return {original: new for original, new in zip(paths, result)}
@@ -132,6 +166,9 @@ def diff_rename_files(rename_map: Dict[str, str]) -> None:
 def filter_hidden_paths(paths: List[str]) -> List[str]:
     filtered_paths: List[str] = []
     for path in paths:
+        if not path.strip():
+            continue
+
         path_parts = path.split(os.sep)
         has_hidden = any(part.startswith('.') and part not in ['.', '..'] for part in path_parts)
         if not has_hidden:
@@ -140,6 +177,7 @@ def filter_hidden_paths(paths: List[str]) -> List[str]:
 
 
 def has_subtitle_files(paths: List[str]) -> bool:
+    # FIXME: different folders will be ignored
     subtitle_extensions = {'.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx', '.sup'}
 
     for path in paths:
@@ -174,11 +212,11 @@ def execute_rename_plan(rename_map: Dict[str, str]) -> None:
             os.makedirs(new_dir)
 
             dir_name = os.path.basename(new_dir)
-            if not re.match(r".*Season \d+$", dir_name):
-                open(os.path.join(new_dir, ".ignore"), "a").close()
+            if not re.match(r"^Season \d+$", dir_name):
+                open(os.path.join(absolute_new, ".ignore"), "a").close()
 
         os.rename(absolute_original, absolute_new)
-        print(f"Renamed '{absolute_original}' to '{absolute_new}'")
+        print(f"Renamed '{absolute_original}' to '{absolute_new}'", file=sys.stderr)
 
 
 def generate_rename_plan(paths: List[str]) -> Tuple[str, Optional[Dict[str, str]]]:
@@ -192,8 +230,10 @@ def generate_rename_plan(paths: List[str]) -> Tuple[str, Optional[Dict[str, str]
     common_dir = common_top_directory(paths)
     anime_name = extract_anime_name(common_dir)
 
-    tmdb_info = simplify_tmdb_result(query_tmdb(anime_name)) if anime_name else None
-    print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
+    tmdb_info: Optional[Dict[str, Any]] = None
+    if tmdb_result := query_tmdb(anime_name):
+        tmdb_info = simplify_tmdb_result(*tmdb_result)
+        print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
 
     rename_response = generate_rename_response(paths, tmdb_info, prompt)
     if not rename_response:
@@ -218,11 +258,11 @@ def main():
         print("No valid paths provided.", file=sys.stderr)
         sys.exit(1)
 
-    require_subtitles = not args.no_require_subtitles
-    if require_subtitles and not has_subtitle_files(paths):
-        print("No subtitle files found. Skipping rename process. \
-              Use --no-require-subtitles to disable this check.", file=sys.stderr)
-        sys.exit(0)
+    if args.require_subtitles and not args.dry_run:
+        if not has_subtitle_files(paths):
+            print("No subtitle files found. Skipping rename process. \
+                Use --no-require-subtitles to disable this check.", file=sys.stderr)
+            sys.exit(0)
 
     plan_name, rename_plan = generate_rename_plan(paths)
     if not rename_plan:
