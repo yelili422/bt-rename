@@ -139,6 +139,17 @@ def filter_hidden_paths(paths: List[str]) -> List[str]:
     return filtered_paths
 
 
+def has_subtitle_files(paths: List[str]) -> bool:
+    subtitle_extensions = {'.srt', '.ass', '.ssa', '.vtt', '.sub', '.idx', '.sup'}
+
+    for path in paths:
+        _, ext = os.path.splitext(path.lower())
+        if ext in subtitle_extensions:
+            return True
+
+    return False
+
+
 def common_top_directory(paths: List[str]) -> str:
     if not paths:
         return ''
@@ -195,6 +206,7 @@ def generate_rename_plan(paths: List[str]) -> Tuple[str, Optional[Dict[str, str]
 def main():
     parser = argparse.ArgumentParser(description="BT rename utility")
     parser.add_argument("--dry-run", "-d", action="store_true", help="Perform a dry run without making actual changes")
+    parser.add_argument("--require-subtitles", "-s", action="store_true", help="Require subtitle files")
     args = parser.parse_args()
 
     load_dotenv()
@@ -205,6 +217,12 @@ def main():
     if not paths:
         print("No valid paths provided.", file=sys.stderr)
         sys.exit(1)
+
+    require_subtitles = not args.no_require_subtitles
+    if require_subtitles and not has_subtitle_files(paths):
+        print("No subtitle files found. Skipping rename process. \
+              Use --no-require-subtitles to disable this check.", file=sys.stderr)
+        sys.exit(0)
 
     plan_name, rename_plan = generate_rename_plan(paths)
     if not rename_plan:
