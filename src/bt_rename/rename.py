@@ -188,6 +188,17 @@ def has_subtitle_files(paths: List[str]) -> bool:
     return False
 
 
+def has_video_files(paths: List[str]) -> bool:
+    video_extensions = {'.mp4', '.mkv', '.avi', '.mov', '.wmv'}
+
+    for path in paths:
+        _, ext = os.path.splitext(path.lower())
+        if ext in video_extensions:
+            return True
+
+    return False
+
+
 def common_top_directory(paths: List[str]) -> str:
     if not paths:
         return ''
@@ -219,40 +230,77 @@ def execute_rename_plan(rename_map: Dict[str, str]) -> None:
         print(f"Renamed '{absolute_original}' to '{absolute_new}'", file=sys.stderr)
 
 
-def generate_rename_plan(paths: List[str]) -> Tuple[str, Optional[Dict[str, str]]]:
+def generate_rename_plan(terms: str, paths: List[str]) -> Optional[Dict[str, str]]:
     try:
         prompt_resource = resources.files('bt_rename').joinpath('rename_plan_prompt.txt')
         prompt = prompt_resource.read_text()
     except Exception as e:
         print(f"Error loading prompt file: {e}")
-        return "", None
-
-    common_dir = common_top_directory(paths)
-    anime_name = extract_anime_name(common_dir)
+        return None
 
     tmdb_info: Optional[Dict[str, Any]] = None
-    if tmdb_result := query_tmdb(anime_name):
+    if tmdb_result := query_tmdb(terms):
         tmdb_info = simplify_tmdb_result(*tmdb_result)
         print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
+    else:
+        print("No TMDB info found by terms: ", terms, file=sys.stderr)
 
     rename_response = generate_rename_response(paths, tmdb_info, prompt)
     if not rename_response:
         print("Failed to generate rename response.", file=sys.stderr)
-        return common_dir, None
+        return None
 
-    return common_dir, normalize_rename_response(paths, rename_response)
+    return normalize_rename_response(paths, rename_response)
+
+
+def fetch_paths_recursively(directory: str, max_depth: int=2) -> List[str]:
+    try:
+        entries: List[str] = []
+        with os.scandir(directory) as it:
+            for entry in it:
+                if entry.name.startswith('.') and entry.name not in ['.', '..']:
+                    continue
+
+                abs_path = os.path.abspath(entry.path)
+                entries.append(abs_path)
+    except PermissionError as e:
+        print(f"Permission denied: {e}", file=sys.stderr)
+        return []
+
+    entries.sort()
+
+    if has_video_files(entries):
+        return entries
+    else:
+        if max_depth <= 1:
+            return entries
+        else:
+            all_entries: List[str] = []
+            for entry in entries:
+                if os.path.isdir(entry):
+                    all_entries.extend(fetch_paths_recursively(entry, max_depth - 1))
+            return all_entries
 
 
 def main():
     parser = argparse.ArgumentParser(description="BT rename utility")
-    parser.add_argument("--dry-run", "-d", action="store_true", help="Perform a dry run without making actual changes")
-    parser.add_argument("--require-subtitles", "-s", action="store_true", help="Require subtitle files")
+    parser.add_argument("--terms", "-t", type=str, default="", help="Terms to search for in TMDB")
+    parser.add_argument("--dry-run", "-d", default=False, action="store_true", help="Perform a dry run without making actual changes")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--require-subtitles", "-s", default=True, action="store_true", help="Require subtitle files")
+    parser.add_argument("directories", type=str, nargs="*", default=None, help="Target directories")
     args = parser.parse_args()
 
     load_dotenv()
 
-    path_str = sys.stdin.read()
-    paths = filter_hidden_paths(path_str.strip().split('\n'))
+    if not args.directories:
+        path_str = sys.stdin.read()
+        paths = filter_hidden_paths(path_str.strip().split('\n'))
+    else:
+        paths: List[str] = []
+        for dir in args.directories:
+            if os.path.isdir(dir):
+                paths.extend(fetch_paths_recursively(dir))
 
     if not paths:
         print("No valid paths provided.", file=sys.stderr)
@@ -260,18 +308,32 @@ def main():
 
     if args.require_subtitles and not args.dry_run:
         if not has_subtitle_files(paths):
-            print("No subtitle files found. Skipping rename process. \
-                Use --no-require-subtitles to disable this check.", file=sys.stderr)
-            sys.exit(0)
+            print("No subtitle files found. Skipping rename process.", file=sys.stderr)
+            print("Use --no-require-subtitles to disable this check.", file=sys.stderr)
+            sys.exit(1)
 
-    plan_name, rename_plan = generate_rename_plan(paths)
+    if not args.terms:
+        common_dir = common_top_directory(paths)
+        anime_name = extract_anime_name(common_dir)
+    else:
+        anime_name = args.terms
+
+    rename_plan = generate_rename_plan(anime_name, paths)
     if not rename_plan:
         print("Failed to generate rename plan.", file=sys.stderr)
         sys.exit(1)
 
+    if args.debug:
+        print("Paths to be renamed:", file=sys.stderr)
+        for p in paths:
+            print(f"  {p}", file=sys.stderr)
+
+        print("Generated rename plan:", file=sys.stderr)
+        print(json.dumps(rename_plan, indent=2, ensure_ascii=False), file=sys.stderr)
+
     diff_rename_files(rename_plan)
 
-    output_name = f".{plan_name}.rename-plan.json" if plan_name else ".rename-plan.json"
+    output_name = f".{anime_name}.rename-plan.json" if anime_name else ".rename-plan.json"
     with open(os.path.join(os.getcwd(), output_name), "w") as f:
         json.dump(rename_plan, f, indent=2, ensure_ascii=False)
 
