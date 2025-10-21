@@ -287,7 +287,7 @@ def main():
     parser.add_argument("--terms", "-t", type=str, default="", help="Terms to search for in TMDB")
     parser.add_argument("--dry-run", "-d", default=False, action="store_true", help="Perform a dry run without making actual changes")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--require-subtitles", "-s", default=True, action="store_true", help="Require subtitle files")
+    parser.add_argument("--no-require-subtitles", "-n", default=False, action="store_true", help="Do not require subtitle files")
     parser.add_argument("directories", type=str, nargs="*", default=None, help="Target directories")
     args = parser.parse_args()
 
@@ -306,7 +306,7 @@ def main():
         print("No valid paths provided.", file=sys.stderr)
         sys.exit(1)
 
-    if args.require_subtitles and not args.dry_run:
+    if not args.no_require_subtitles and not args.dry_run:
         if not has_subtitle_files(paths):
             print("No subtitle files found. Skipping rename process.", file=sys.stderr)
             print("Use --no-require-subtitles to disable this check.", file=sys.stderr)
@@ -332,6 +332,11 @@ def main():
         print(json.dumps(rename_plan, indent=2, ensure_ascii=False), file=sys.stderr)
 
     diff_rename_files(rename_plan)
+    if args.directories:
+        confirm = input("Proceed with the renaming? (y/N): ")
+        if confirm.lower() != 'y':
+            print("Aborting rename operation.", file=sys.stderr)
+            sys.exit(0)
 
     output_name = f".{anime_name}.rename-plan.json" if anime_name else ".rename-plan.json"
     with open(os.path.join(os.getcwd(), output_name), "w") as f:
