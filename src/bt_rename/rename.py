@@ -222,10 +222,6 @@ def execute_rename_plan(rename_map: Dict[str, str]) -> None:
         if not os.path.exists(new_dir):
             os.makedirs(new_dir)
 
-            dir_name = os.path.basename(new_dir)
-            if not re.match(r"^Season \d+$", dir_name):
-                open(os.path.join(absolute_new, ".ignore"), "a").close()
-
         os.rename(absolute_original, absolute_new)
         print(f"Renamed '{absolute_original}' to '{absolute_new}'", file=sys.stderr)
 
