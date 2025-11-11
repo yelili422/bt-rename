@@ -208,7 +208,7 @@ def common_top_directory(paths: List[str]) -> str:
 
     path_parts = common_path.split(os.sep)
     if len(path_parts) > 1:
-        return path_parts[0]
+        return path_parts[-1]
 
     return common_path
 
@@ -309,6 +309,9 @@ def main():
             sys.exit(1)
 
     if not args.terms:
+        # e.g.
+        # /path/to/anime/season1/S01E01.mkv
+        # /path/to/anime/season2/S02E01.mkv
         common_dir = common_top_directory(paths)
         anime_name = extract_anime_name(common_dir)
     else:
