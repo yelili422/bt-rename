@@ -158,8 +158,9 @@ def generate_rename_response(paths: List[str], tmdb_info: Optional[Dict[str, Any
 
 
 def diff_rename_files(rename_map: Dict[str, str]) -> None:
+    common_dir = os.path.commonpath(list(rename_map.keys()) + list(rename_map.values()))
     for original, new in rename_map.items():
-        print(f"'{original}' -> '{new}'")
+        print(f"'{os.path.relpath(original, common_dir)}' -> '{os.path.relpath(new, common_dir)}'")
 
 
 def filter_hidden_paths(paths: List[str]) -> List[str]:
@@ -198,7 +199,7 @@ def has_video_files(paths: List[str]) -> bool:
     return False
 
 
-def common_top_directory(paths: List[str]) -> str:
+def common_parent_directory(paths: List[str]) -> str:
     if not paths:
         return ''
 
@@ -313,7 +314,7 @@ def main():
         # e.g.
         # /path/to/anime/season1/S01E01.mkv
         # /path/to/anime/season2/S02E01.mkv
-        common_dir = common_top_directory(paths)
+        common_dir = common_parent_directory(paths)
         anime_name = extract_anime_name(common_dir)
     else:
         anime_name = args.terms
