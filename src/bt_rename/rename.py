@@ -1,4 +1,3 @@
-import re
 import sys
 from dotenv import load_dotenv
 import os
@@ -249,7 +248,7 @@ def generate_rename_plan(terms: str, paths: List[str]) -> Optional[Dict[str, str
     return normalize_rename_response(paths, rename_response)
 
 
-def fetch_paths_recursively(directory: str, max_depth: int=2) -> List[str]:
+def fetch_paths_recursively(directory: str, max_depth: int = 2) -> List[str]:
     try:
         entries: List[str] = []
         with os.scandir(directory) as it:
@@ -281,9 +280,11 @@ def fetch_paths_recursively(directory: str, max_depth: int=2) -> List[str]:
 def main():
     parser = argparse.ArgumentParser(description="BT rename utility")
     parser.add_argument("--terms", "-t", type=str, default="", help="Terms to search for in TMDB")
-    parser.add_argument("--dry-run", "-d", default=False, action="store_true", help="Perform a dry run without making actual changes")
+    parser.add_argument("--dry-run", "-d", default=False, action="store_true",
+                        help="Perform a dry run without making actual changes")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--no-require-subtitles", "-n", default=False, action="store_true", help="Do not require subtitle files")
+    parser.add_argument("--no-require-subtitles", "-n", default=False,
+                        action="store_true", help="Do not require subtitle files")
     parser.add_argument("directories", type=str, nargs="*", default=None, help="Target directories")
     args = parser.parse_args()
 

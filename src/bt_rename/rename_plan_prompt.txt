@@ -14,7 +14,11 @@ them along with the files in the same location.
 3. Standardize subtitle language encoding, using chs/cht for Chinese and
 jpn for Japanese. For multilingual subtitles, retain a single encoding.
 
-4. The order of input and output directories or files must be identical.
+4. If subtitle files and video files belong to the same episode, their filenames
+(excluding extensions) must be identical. This ensures that media servers can
+correctly match subtitles with their corresponding video files.
+
+5. The order of input and output directories or files must be identical.
 Don't add or remove any directories or files.
 
 e.g.
