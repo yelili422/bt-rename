@@ -158,9 +158,8 @@ def generate_rename_response(paths: List[str], tmdb_info: Optional[Dict[str, Any
 
 
 def diff_rename_files(rename_map: Dict[str, str]) -> None:
-    common_dir = os.path.commonpath(list(rename_map.keys()) + list(rename_map.values()))
     for original, new in rename_map.items():
-        print(f"'{os.path.relpath(original, common_dir)}' -> '{os.path.relpath(new, common_dir)}'")
+        print(f"'{original}' -> '{new}'")
 
 
 def filter_hidden_paths(paths: List[str]) -> List[str]:
@@ -215,15 +214,12 @@ def common_parent_directory(paths: List[str]) -> str:
 
 def execute_rename_plan(rename_map: Dict[str, str]) -> None:
     for original, new in rename_map.items():
-        absolute_original = os.path.abspath(original)
-        absolute_new = os.path.abspath(new)
-
-        new_dir = os.path.dirname(absolute_new)
-        if not os.path.exists(new_dir):
+        new_dir = os.path.dirname(new)
+        if new_dir and not os.path.exists(new_dir):
             os.makedirs(new_dir)
 
-        os.rename(absolute_original, absolute_new)
-        print(f"Renamed '{absolute_original}' to '{absolute_new}'", file=sys.stderr)
+        os.rename(original, new)
+        print(f"Renamed '{original}' to '{new}'", file=sys.stderr)
 
 
 def generate_rename_plan(terms: str, paths: List[str]) -> Optional[Dict[str, str]]:
@@ -257,8 +253,7 @@ def fetch_paths_recursively(directory: str, max_depth: int = 2) -> List[str]:
                 if entry.name.startswith('.') and entry.name not in ['.', '..']:
                     continue
 
-                abs_path = os.path.abspath(entry.path)
-                entries.append(abs_path)
+                entries.append(entry.path)
     except PermissionError as e:
         print(f"Permission denied: {e}", file=sys.stderr)
         return []
@@ -286,6 +281,7 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--no-require-subtitles", "-n", default=False,
                         action="store_true", help="Do not require subtitle files")
+    parser.add_argument("--max-depth", type=int, default=2, help="Maximum directory traversal depth")
     parser.add_argument("directories", type=str, nargs="*", default=None, help="Target directories")
     args = parser.parse_args()
 
@@ -298,7 +294,7 @@ def main():
         paths: List[str] = []
         for dir in args.directories:
             if os.path.isdir(dir):
-                paths.extend(fetch_paths_recursively(dir))
+                paths.extend(fetch_paths_recursively(dir, max_depth=args.max_depth))
 
     if not paths:
         print("No valid paths provided.", file=sys.stderr)
