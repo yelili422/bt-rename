@@ -1,3 +1,4 @@
+import pprint
 import sys
 from dotenv import load_dotenv
 import os
@@ -9,7 +10,7 @@ import argparse
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-lite")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite-preview")
 
 
 def query_tmdb(title: str) -> Optional[Tuple[str, Dict[str, Any]]]:
@@ -158,8 +159,9 @@ def generate_rename_response(paths: List[str], tmdb_info: Optional[Dict[str, Any
 
 
 def diff_rename_files(rename_map: Dict[str, str]) -> None:
+    print("Diff:")
     for original, new in rename_map.items():
-        print(f"'{original}' -> '{new}'")
+        print(f"'{original}'\t -> '{new}'")
 
 
 def filter_hidden_paths(paths: List[str]) -> List[str]:
@@ -233,7 +235,8 @@ def generate_rename_plan(terms: str, paths: List[str]) -> Optional[Dict[str, str
     tmdb_info: Optional[Dict[str, Any]] = None
     if tmdb_result := query_tmdb(terms):
         tmdb_info = simplify_tmdb_result(*tmdb_result)
-        print("Queried TMDB info: ", tmdb_info, file=sys.stderr)
+        print("TMDB info: ", file=sys.stderr)
+        pprint.pprint(tmdb_info, stream=sys.stderr, indent=2)
     else:
         print("No TMDB info found by terms: ", terms, file=sys.stderr)
 
@@ -279,7 +282,7 @@ def main():
     parser.add_argument("--dry-run", "-d", default=False, action="store_true",
                         help="Perform a dry run without making actual changes")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-    parser.add_argument("--no-require-subtitles", "-n", default=False,
+    parser.add_argument("--no-subtitles", "-n", default=False,
                         action="store_true", help="Do not require subtitle files")
     parser.add_argument("--max-depth", type=int, default=2, help="Maximum directory traversal depth")
     parser.add_argument("directories", type=str, nargs="*", default=None, help="Target directories")
@@ -300,10 +303,10 @@ def main():
         print("No valid paths provided.", file=sys.stderr)
         sys.exit(1)
 
-    if not args.no_require_subtitles and not args.dry_run:
+    if not args.no_subtitles and not args.dry_run:
         if not has_subtitle_files(paths):
             print("No subtitle files found. Skipping rename process.", file=sys.stderr)
-            print("Use --no-require-subtitles to disable this check.", file=sys.stderr)
+            print("Use --no-subtitles to disable this check.", file=sys.stderr)
             sys.exit(1)
 
     if not args.terms:
@@ -325,15 +328,26 @@ def main():
         for p in paths:
             print(f"  {p}", file=sys.stderr)
 
-        print("Generated rename plan:", file=sys.stderr)
-        print(json.dumps(rename_plan, indent=2, ensure_ascii=False), file=sys.stderr)
+        print("Rename plan:", file=sys.stderr)
+        pprint.pprint(rename_plan, stream=sys.stderr, indent=2)
 
     diff_rename_files(rename_plan)
     if args.directories:
-        confirm = input("Proceed with the renaming? (y/N): ")
-        if confirm.lower() != 'y':
-            print("Aborting rename operation.", file=sys.stderr)
-            sys.exit(0)
+        while True:
+            try:
+                confirm = input("Proceed with the renaming? (y/N): ").strip().lower()
+
+                if confirm == 'y':
+                    break
+                elif confirm == 'n' or confirm == '':
+                    print("\nAborting rename operation.", file=sys.stderr)
+                    sys.exit(0)
+                else:
+                    print("Invalid input. Please enter 'y' or 'n'.")
+
+            except KeyboardInterrupt:
+                print("\n\nOperation cancelled by user. Exiting...", file=sys.stderr)
+                sys.exit(1)
 
     output_name = f".{anime_name}.rename-plan.json" if anime_name else ".rename-plan.json"
     with open(os.path.join(os.getcwd(), output_name), "w") as f:
