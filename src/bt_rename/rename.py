@@ -8,6 +8,8 @@ import json
 from importlib import resources
 import argparse
 
+import anitopy
+
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-3.1-flash-lite-preview")
@@ -63,16 +65,11 @@ def query_tmdb(title: str) -> Optional[Tuple[str, Dict[str, Any]]]:
 
 
 def extract_anime_name(dir_name: str) -> str:
-    import re
+    parsed: Optional[Dict[str, Any]] = anitopy.parse(dir_name)  # type: ignore
+    if parsed is None:
+        return dir_name
 
-    # remove tags in square brackets and parentheses
-    name = re.sub(r'\[.*?\]', '', dir_name).strip()
-    name = re.sub(r'\(.*?\)', '', name).strip()
-
-    # remove extra spaces
-    name = re.sub(r'\s+', ' ', name).strip()
-
-    return name
+    return parsed.get("anime_title", dir_name)
 
 
 def simplify_tmdb_result(media_type: str, result: Dict[str, Any]) -> Dict[str, Any]:
